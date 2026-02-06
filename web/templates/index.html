@@ -1,0 +1,25 @@
+<h2>Patient Details</h2>
+<input id="pname" placeholder="Name">
+<input id="pid" placeholder="Patient ID">
+<input id="page" placeholder="Age">
+<input id="pgender" placeholder="Gender">
+<button onclick="setPatient()">Set Patient</button>
+
+<h3 id="patientInfo">No patient selected</h3>
+
+<hr>
+
+<div class="grid">
+  <div class="card"><h3>Blood Flow</h3><p id="bloodFlow">--</p></div>
+  <div class="card"><h3>Arterial Pressure</h3><p id="arterialPressure">--</p></div>
+  <div class="card"><h3>Venous Pressure</h3><p id="venousPressure">--</p></div>
+  <div class="card"><h3>Vibration</h3><p id="vibration">--</p></div>
+  <div class="card"><h3>Remaining Time</h3><p id="remainingTime">--:--:--</p></div>
+  <div class="card"><h3>Status</h3><p id="status">NORMAL</p></div>
+</div>
+
+<h3>Alert Log</h3>
+<ul id="alertLog"></ul>
+
+<button onclick="startSystem()">▶ Start</button>
+<button onclick="stopSystem()">⏹ Stop</button>
