@@ -1,9 +1,11 @@
-from flask import Flask, jsonify, request, render_template
+from flask import Flask, jsonify, request
+from flask_cors import CORS
 import threading
 import time
 import random
 
-app = Flask(__name__, template_folder="templates", static_folder="static")
+app = Flask(__name__)
+CORS(app)
 
 # ------------------------
 # GLOBAL STATE
@@ -11,7 +13,6 @@ app = Flask(__name__, template_folder="templates", static_folder="static")
 system_running = False
 current_vibration = 0.0
 
-# thresholds
 STABILISATION_THRESHOLD = 0.35
 EMERGENCY_STOP_THRESHOLD = 0.55
 
@@ -20,9 +21,8 @@ arterial_pressure = 120
 venous_pressure = 80
 treatment_seconds = 2 * 3600
 
-system_state = "NORMAL"
+system_state = "IDLE"
 
-# patient storage
 patients = {}
 current_patient_id = None
 current_session = None
@@ -37,20 +37,19 @@ def simulation_loop():
     global system_state, current_session
 
     while True:
-        if system_running and current_patient_id:
+        if system_running and current_patient_id and current_session:
             current_vibration = round(random.uniform(0.05, 0.7), 2)
 
-            # 🔴 Emergency Stop
+            # 🔴 Emergency stop
             if current_vibration >= EMERGENCY_STOP_THRESHOLD:
                 system_state = "EMERGENCY_STOP"
                 system_running = False
 
-                alert = {
+                current_session["alerts"].append({
                     "time": time.strftime("%H:%M:%S"),
                     "message": "EMERGENCY: Severe vibration detected. Dialysis stopped."
-                }
+                })
 
-                current_session["alerts"].append(alert)
                 patients[current_patient_id]["sessions"].append(current_session)
                 current_session = None
 
@@ -61,11 +60,10 @@ def simulation_loop():
                 arterial_pressure = 180
                 venous_pressure = 160
 
-                alert = {
+                current_session["alerts"].append({
                     "time": time.strftime("%H:%M:%S"),
-                    "message": "ALERT: Stabilisation mode activated."
-                }
-                current_session["alerts"].append(alert)
+                    "message": "Stabilisation mode activated."
+                })
 
             # 🟢 Normal
             else:
@@ -82,16 +80,16 @@ def simulation_loop():
 # ------------------------
 # ROUTES
 # ------------------------
+
 @app.route("/")
 def index():
-    return "Dialysis Backend Running"
-
+    return jsonify({"status": "Dialysis Backend Running"})
 
 @app.route("/set_patient", methods=["POST"])
 def set_patient():
-    global current_patient_id, current_session, treatment_seconds
+    global current_patient_id, current_session, treatment_seconds, system_state
 
-    data = request.json
+    data = request.get_json()
     pid = data["id"]
 
     patients[pid] = {
@@ -108,10 +106,11 @@ def set_patient():
     }
 
     treatment_seconds = int(data.get("hours", 2) * 3600)
+    system_state = "READY"
 
     return jsonify({"ok": True})
 
-@app.route("/data")
+@app.route("/data", methods=["GET"])
 def data():
     h = treatment_seconds // 3600
     m = (treatment_seconds % 3600) // 60
@@ -132,15 +131,17 @@ def data():
 
 @app.route("/start", methods=["POST"])
 def start():
-    global system_running
-    if current_patient_id:
+    global system_running, system_state
+    if current_patient_id and current_session:
         system_running = True
+        system_state = "RUNNING"
     return jsonify({"ok": True})
 
 @app.route("/stop", methods=["POST"])
 def stop():
-    global system_running
+    global system_running, system_state
     system_running = False
+    system_state = "STOPPED"
     return jsonify({"ok": True})
 
 # ------------------------
