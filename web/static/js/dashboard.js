@@ -1,16 +1,18 @@
 function setPatient() {
   const payload = {
-    name: document.getElementById("pname").value,
-    id: document.getElementById("pid").value,
-    age: document.getElementById("page").value,
-    gender: document.getElementById("pgender").value,
-    hours: document.getElementById("timeInput").value
+    name: pname.value,
+    age: page.value,
+    gender: pgender.value,
+    hours: timeInput.value
   };
 
   fetch("/set_patient", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload)
+  }).then(() => {
+    patientInfo.innerText =
+      `${payload.name} | Age ${payload.age} | ${payload.gender}`;
   });
 }
 
@@ -24,39 +26,22 @@ function stopSystem() {
 
 function fetchData() {
   fetch("/data")
-    .then(res => res.json())
-    .then(data => {
-      if (data.patient) {
-        document.getElementById("patientInfo").innerText =
-          `${data.patient.name} | ${data.patient.age} | ${data.patient.gender}`;
-      }
-
-      document.getElementById("bloodFlow").innerText =
-        data.blood_flow + " ml/min";
-
-      document.getElementById("arterialPressure").innerText =
-        data.arterial_pressure + " mmHg";
-
-      document.getElementById("venousPressure").innerText =
-        data.venous_pressure + " mmHg";
-
-      document.getElementById("vibration").innerText =
-        data.vibration + " g";
-
-      document.getElementById("remainingTime").innerText =
-        data.remaining_time;
-
-      document.getElementById("status").innerText =
-        data.system_state;
-
-      const log = document.getElementById("alertLog");
-      log.innerHTML = "";
-      data.alerts.forEach(a => {
-        log.innerHTML += `<li>[${a.time}] ${a.message}</li>`;
-      });
+    .then(r => r.json())
+    .then(d => {
+      bloodFlow.innerText = d.blood_flow + " ml/min";
+      arterialPressure.innerText = d.arterial_pressure + " mmHg";
+      venousPressure.innerText = d.venous_pressure + " mmHg";
+      vibration.innerText = d.vibration + " g";
+      remainingTime.innerText = d.remaining_time;
+      status.innerText = d.system_state;
 
       document.body.style.background =
-        data.system_state === "EMERGENCY_STOP" ? "#ffcccc" : "white";
+        d.system_state === "EMERGENCY_STOP" ? "#7f1d1d" : "#0f172a";
+
+      alertLog.innerHTML = "";
+      d.alerts.forEach(a =>
+        alertLog.innerHTML += `<li>[${a.time}] ${a.message}</li>`
+      );
     });
 }
 
