@@ -14,39 +14,36 @@ class DialysisApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Dialysis Dashboard',
-      theme: ThemeData.dark().copyWith(
-        scaffoldBackgroundColor: const Color(0xFF121212),
-        cardColor: const Color(0xFF1E1E1E),
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xFF1F6FEB),
-        ),
-      ),
-      home: const DashboardPage(),
+      theme: ThemeData.dark(),
+      home: const Dashboard(),
     );
   }
 }
 
-class DashboardPage extends StatefulWidget {
-  const DashboardPage({super.key});
+class Dashboard extends StatefulWidget {
+  const Dashboard({super.key});
 
   @override
-  State<DashboardPage> createState() => _DashboardPageState();
+  State<Dashboard> createState() => _DashboardState();
 }
 
-class _DashboardPageState extends State<DashboardPage> {
+class _DashboardState extends State<Dashboard> {
   Map<String, dynamic>? data;
-  bool loading = true;
   Timer? timer;
+
+  final String baseUrl = "http://localhost:5001";
+
+  // controllers for manual input
+  final nameCtrl = TextEditingController();
+  final ageCtrl = TextEditingController();
+  final genderCtrl = TextEditingController();
+  final hoursCtrl = TextEditingController(text: "4");
 
   @override
   void initState() {
     super.initState();
     fetchData();
-    timer = Timer.periodic(
-      const Duration(seconds: 1),
-      (_) => fetchData(),
-    );
+    timer = Timer.periodic(const Duration(seconds: 1), (_) => fetchData());
   }
 
   @override
@@ -55,38 +52,91 @@ class _DashboardPageState extends State<DashboardPage> {
     super.dispose();
   }
 
+  // ================= API =================
+
   Future<void> fetchData() async {
     try {
-      final res =
-          await http.get(Uri.parse("http://127.0.0.1:5000/data"));
-
+      final res = await http.get(Uri.parse("$baseUrl/data"));
       if (res.statusCode == 200) {
         setState(() {
           data = jsonDecode(res.body);
-          loading = false;
         });
       }
-    } catch (e) {
-      debugPrint("ERROR: $e");
+    } catch (_) {
+      setState(() {
+        data = {
+          "system_state": "DISCONNECTED",
+          "alerts": [],
+          "patient": null,
+          "blood_flow": "--",
+          "arterial_pressure": "--",
+          "venous_pressure": "--",
+          "vibration": "--",
+          "remaining_time": "--:--:--",
+        };
+      });
     }
   }
 
+  Future<void> submitPatient() async {
+    await http.post(
+      Uri.parse("$baseUrl/set_patient"),
+      headers: {"Content-Type": "application/json"},
+      body: jsonEncode({
+        "name": nameCtrl.text,
+        "age": int.tryParse(ageCtrl.text) ?? 0,
+        "gender": genderCtrl.text,
+        "hours": int.tryParse(hoursCtrl.text) ?? 4,
+      }),
+    );
+
+    Navigator.pop(context);
+  }
+
+  Future<void> startSystem() async {
+    await http.post(Uri.parse("$baseUrl/start"));
+  }
+
+  Future<void> stopSystem() async {
+    await http.post(Uri.parse("$baseUrl/stop"));
+  }
+
+  // ================= UI =================
+
   @override
   Widget build(BuildContext context) {
-    if (loading) {
+    if (data == null) {
       return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
+        body: Center(child: Text("Connecting to server...")),
       );
     }
 
     final state = data!['system_state'];
     final alerts = data!['alerts'] as List;
 
+    Color bg = Colors.black;
+    if (state == "EMERGENCY_STOP") bg = Colors.red.shade900;
+    if (state == "STABILISATION") bg = Colors.orange.shade900;
+    if (state == "RUNNING") bg = Colors.green.shade900;
+
     return Scaffold(
+      backgroundColor: bg,
       appBar: AppBar(
-        title: const Text("AI Dialysis Monitoring Dashboard"),
-        backgroundColor:
-            state == "EMERGENCY_STOP" ? Colors.red : Colors.blue,
+        title: const Text("AI Dialysis Dashboard"),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.person_add),
+            onPressed: showPatientDialog,
+          ),
+          IconButton(
+            icon: const Icon(Icons.play_arrow),
+            onPressed: startSystem,
+          ),
+          IconButton(
+            icon: const Icon(Icons.stop),
+            onPressed: stopSystem,
+          ),
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(16),
@@ -95,54 +145,42 @@ class _DashboardPageState extends State<DashboardPage> {
           children: [
             Card(
               child: ListTile(
-                title: Text(
-                  data!['patient']?['name'] ?? "No Patient Selected",
-                ),
+                title: Text(data!['patient']?['name'] ?? "No Patient"),
                 subtitle: Text(
                   "Age: ${data!['patient']?['age'] ?? '--'} | "
                   "Gender: ${data!['patient']?['gender'] ?? '--'}",
                 ),
               ),
             ),
+            const SizedBox(height: 12),
 
-            const SizedBox(height: 16),
-
-            GridView.count(
-              shrinkWrap: true,
-              crossAxisCount: 3,
-              childAspectRatio: 2.5,
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
               children: [
-                vitalsCard("Blood Flow", "${data!['blood_flow']} ml/min"),
-                vitalsCard("Arterial Pressure",
-                    "${data!['arterial_pressure']} mmHg"),
-                vitalsCard("Venous Pressure",
-                    "${data!['venous_pressure']} mmHg"),
-                vitalsCard("Vibration", "${data!['vibration']} g"),
-                vitalsCard("Remaining Time",
-                    data!['remaining_time'] ?? "--"),
-                vitalsCard("System State", state),
+                stat("Blood Flow", "${data!['blood_flow']} ml/min"),
+                stat("Arterial", "${data!['arterial_pressure']} mmHg"),
+                stat("Venous", "${data!['venous_pressure']} mmHg"),
+                stat("Vibration", "${data!['vibration']} g"),
+                stat("Time Left", data!['remaining_time']),
+                stat("State", state),
               ],
             ),
 
-            const SizedBox(height: 20),
-
-            const Text(
-              "Alert Log",
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-
+            const SizedBox(height: 16),
+            const Text("Alerts", style: TextStyle(fontSize: 18)),
             Expanded(
-              child: ListView.builder(
-                itemCount: alerts.length,
-                itemBuilder: (context, index) {
-                  return ListTile(
-                    leading:
-                        const Icon(Icons.warning, color: Colors.red),
-                    title: Text(alerts[index]['message']),
-                    subtitle: Text(alerts[index]['time']),
-                  );
-                },
-              ),
+              child: alerts.isEmpty
+                  ? const Center(child: Text("No alerts"))
+                  : ListView.builder(
+                      itemCount: alerts.length,
+                      itemBuilder: (_, i) => ListTile(
+                        leading: const Icon(Icons.warning,
+                            color: Colors.redAccent),
+                        title: Text(alerts[i]['message']),
+                        subtitle: Text(alerts[i]['time']),
+                      ),
+                    ),
             ),
           ],
         ),
@@ -150,19 +188,46 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
-  Widget vitalsCard(String title, String value) {
-    return Card(
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+  Widget stat(String title, String value) {
+    return Container(
+      width: 170,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade900,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.grey.shade700),
+      ),
+      child: Column(
+        children: [
+          Text(title),
+          const SizedBox(height: 6),
+          Text(value,
+              style:
+                  const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        ],
+      ),
+    );
+  }
+
+  // ================= PATIENT INPUT =================
+
+  void showPatientDialog() {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text("Set Patient"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Text(title,
-                style: const TextStyle(
-                    fontSize: 14, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 4),
-            Text(value, style: const TextStyle(fontSize: 16)),
+            TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: "Name")),
+            TextField(controller: ageCtrl, decoration: const InputDecoration(labelText: "Age")),
+            TextField(controller: genderCtrl, decoration: const InputDecoration(labelText: "Gender")),
+            TextField(controller: hoursCtrl, decoration: const InputDecoration(labelText: "Dialysis Hours")),
           ],
         ),
+        actions: [
+          TextButton(onPressed: submitPatient, child: const Text("SAVE")),
+        ],
       ),
     );
   }
