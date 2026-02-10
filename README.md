@@ -126,33 +126,7 @@ This system continuously:
 
 ---
 
-## Project Structure
-
-┌──────────────────────────┐
-│   Vibration Simulation   │
-│ (Seismic / Machine Data) │
-└─────────────┬────────────┘
-              │
-              ▼
-┌──────────────────────────┐
-│   AI Safety & Control    │
-│      (Flask Backend)     │
-│                          │
-│ • Threshold Evaluation   │
-│ • Mode Switching         │
-│ • Treatment Timer        │
-│ • Alert Generation       │
-└─────────────┬────────────┘
-              │ REST APIs
-              ▼
-┌─────────────────────────────────────────┐
-│        User Interfaces (Live)           │
-│                                         │
-│  ┌───────────────┐   ┌────────────────┐ │
-│  │ Web Dashboard │   │ Flutter App    │ │
-│  │ (HTML/CSS/JS) │   │(Cross-Platform)│ │
-│  └───────────────┘   └────────────────┘ │
-└─────────────────────────────────────────┘
+## Project Structure 
 
 ## Tech Stack
 
@@ -178,39 +152,3 @@ This system continuously:
 - GitHub (structured commits)
 
 ---
-
-## Project Structure
-
-dialysis-stabilisation-system/
-│
-├── web/                         # Backend + Web Dashboard
-│   ├── app.py                   # Flask backend (core logic)
-│   │
-│   ├── templates/
-│   │   └── index.html           # Web dashboard UI
-│   │
-│   ├── static/
-│   │   ├── css/
-│   │   │   └── style.css        # Dashboard styling
-│   │   └── js/
-│   │       └── dashboard.js     # Live data polling & UI logic
-│   │
-│   └── venv/                    # Python virtual environment
-│
-├── dialysis_dashboard/          # Flutter application
-│   ├── lib/
-│   │   └── main.dart            # Flutter UI & API integration
-│   │
-│   ├── pubspec.yaml             # Flutter dependencies
-│   └── pubspec.lock
-│
-├── ai_simulation/               # AI logic & simulation modules
-│   ├── dialysis_machine.py
-│   └── stabilisation_logic.py
-│
-├── README.md                    # Project documentation
-├── .gitignore
-└── requirements.txt             # Backend dependencies
-
-
-
