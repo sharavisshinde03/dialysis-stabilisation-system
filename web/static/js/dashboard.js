@@ -46,3 +46,4 @@ function fetchData() {
 }
 
 setInterval(fetchData, 1000);
+
