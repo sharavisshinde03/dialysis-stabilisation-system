@@ -11,9 +11,24 @@ import time
 import random
 from core.vibration_ai import generate_vibration
 from core.stabilisation_logic import get_system_mode
+from flask_sqlalchemy import SQLAlchemy
+from core.models import db
+from core.models import Patient
+
+
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
 CORS(app)
+
+app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://localhost/dialysis_db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+db.init_app(app)
+
+with app.app_context():
+    db.create_all()
+
+
 
 # ------------------------
 # GLOBAL STATE
@@ -165,6 +180,21 @@ def status():
         "mode": mode,
         "popup": popup_msg
     })
+
+@app.route("/patients", methods=["POST"])
+def create_patients():
+    data = request.json
+
+    new_patient = Patient(
+        name=data["name"],
+        age=data["age"],
+        gender=data["gender"]
+    )
+
+    db.session.add(new_patient)
+    db.session.commit()
+
+    return jsonify({"ok": True})
 
 
 

@@ -1,0 +1,11 @@
+{[
+        {
+            "name": "Run Flask App",
+            "type": "python",
+            "request": "launch",
+            "module": "web.app",
+            "cwd": "${workspaceFolder}",
+            "justMyCode": true
+        }
+    ]
+}

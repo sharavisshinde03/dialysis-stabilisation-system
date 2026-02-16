@@ -31,7 +31,8 @@ class _DashboardState extends State<Dashboard> {
   Map<String, dynamic>? data;
   Timer? timer;
 
-  final String baseUrl = "http://localhost:5001";
+  final String baseUrl = "http://127.0.0.1:5001";
+
 
   final nameCtrl = TextEditingController();
   final ageCtrl = TextEditingController();
@@ -48,6 +49,10 @@ class _DashboardState extends State<Dashboard> {
   @override
   void dispose() {
     timer?.cancel();
+    nameCtrl.dispose();
+    ageCtrl.dispose();
+    genderCtrl.dispose();
+    hoursCtrl.dispose();
     super.dispose();
   }
 
@@ -77,19 +82,28 @@ class _DashboardState extends State<Dashboard> {
     }
   }
 
-  Future<void> submitPatient() async {
-    await http.post(
-      Uri.parse("$baseUrl/set_patient"),
-      headers: {"Content-Type": "application/json"},
-      body: jsonEncode({
-        "name": nameCtrl.text,
-        "age": int.tryParse(ageCtrl.text) ?? 0,
-        "gender": genderCtrl.text,
-        "hours": int.tryParse(hoursCtrl.text) ?? 4,
-      }),
-    );
+  Future<void> registerPatient() async {
+    try {
+      final response = await http.post(
+        Uri.parse("$baseUrl/patients"),
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({
+          "name": nameCtrl.text,
+          "age": int.tryParse(ageCtrl.text) ?? 0,
+          "gender": genderCtrl.text,
+          "hours": int.tryParse(hoursCtrl.text) ?? 4,
+        }),
+      );
 
-    Navigator.pop(context);
+      if (response.statusCode == 200) {
+        fetchData();       // Refresh dashboard
+        Navigator.pop(context); // Close dialog
+      } else {
+        print("Failed to register patient");
+      }
+    } catch (e) {
+      print("Error registering patient: $e");
+    }
   }
 
   Future<void> startSystem() async {
@@ -220,14 +234,25 @@ class _DashboardState extends State<Dashboard> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: "Name")),
-            TextField(controller: ageCtrl, decoration: const InputDecoration(labelText: "Age")),
-            TextField(controller: genderCtrl, decoration: const InputDecoration(labelText: "Gender")),
-            TextField(controller: hoursCtrl, decoration: const InputDecoration(labelText: "Dialysis Hours")),
+            TextField(
+                controller: nameCtrl,
+                decoration: const InputDecoration(labelText: "Name")),
+            TextField(
+                controller: ageCtrl,
+                decoration: const InputDecoration(labelText: "Age")),
+            TextField(
+                controller: genderCtrl,
+                decoration: const InputDecoration(labelText: "Gender")),
+            TextField(
+                controller: hoursCtrl,
+                decoration:
+                    const InputDecoration(labelText: "Dialysis Hours")),
           ],
         ),
         actions: [
-          TextButton(onPressed: submitPatient, child: const Text("SAVE")),
+          TextButton(
+              onPressed: registerPatient,
+              child: const Text("SAVE")),
         ],
       ),
     );
