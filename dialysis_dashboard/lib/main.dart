@@ -33,7 +33,6 @@ class _DashboardState extends State<Dashboard> {
 
   final String baseUrl = "http://localhost:5001";
 
-  // controllers for manual input
   final nameCtrl = TextEditingController();
   final ageCtrl = TextEditingController();
   final genderCtrl = TextEditingController();
@@ -124,18 +123,22 @@ class _DashboardState extends State<Dashboard> {
       appBar: AppBar(
         title: const Text("AI Dialysis Dashboard"),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.person_add),
+          TextButton(
             onPressed: showPatientDialog,
+            child: const Text("Add Patient",
+                style: TextStyle(color: Colors.white)),
           ),
-          IconButton(
-            icon: const Icon(Icons.play_arrow),
+          TextButton(
             onPressed: startSystem,
+            child: const Text("Start",
+                style: TextStyle(color: Colors.greenAccent)),
           ),
-          IconButton(
-            icon: const Icon(Icons.stop),
+          TextButton(
             onPressed: stopSystem,
+            child: const Text("Stop",
+                style: TextStyle(color: Colors.redAccent)),
           ),
+          const SizedBox(width: 16),
         ],
       ),
       body: Padding(
@@ -208,8 +211,6 @@ class _DashboardState extends State<Dashboard> {
       ),
     );
   }
-
-  // ================= PATIENT INPUT =================
 
   void showPatientDialog() {
     showDialog(
