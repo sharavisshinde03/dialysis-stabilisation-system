@@ -44,6 +44,16 @@ function fetchData() {
       );
     });
 }
+function showDashboardPopup(message, type) {
+  const popup = document.getElementById("alertPopup");
+  popup.innerText = message;
+  popup.className = `popup ${type}`;
+  popup.classList.remove("hidden");
+
+  setTimeout(() => {
+    popup.classList.add("hidden");
+  }, 5000);
+}
 
 setInterval(fetchData, 1000);
 

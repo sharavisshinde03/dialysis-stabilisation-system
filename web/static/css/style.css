@@ -91,3 +91,27 @@ button[onclick="stopSystem()"] {
   margin-bottom: 6px;
   color: #f87171;
 }
+
+.popup {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  padding: 16px 20px;
+  border-radius: 8px;
+  font-weight: bold;
+  z-index: 9999;
+}
+
+.popup.warning {
+  background: orange;
+  color: black;
+}
+
+.popup.danger {
+  background: red;
+  color: white;
+}
+
+.hidden {
+  display: none;
+}

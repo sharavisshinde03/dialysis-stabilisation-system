@@ -1,8 +1,16 @@
+import sys
+import os
+
+# Add project root to Python path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
 from flask import Flask, jsonify, request, render_template
 from flask_cors import CORS
 import threading
 import time
 import random
+from core.vibration_ai import generate_vibration
+from core.stabilisation_logic import get_system_mode
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
 CORS(app)
@@ -12,7 +20,6 @@ CORS(app)
 # ------------------------
 system_running = False
 current_vibration = 0.0
-
 STABILISATION_THRESHOLD = 0.35
 EMERGENCY_STOP_THRESHOLD = 0.55
 
@@ -142,6 +149,24 @@ def data():
         "system_state": system_state,
         "alerts": alerts
     })
+
+@app.route("/status")
+def status():
+    vibration = generate_vibration(int(time.time()))
+    mode = get_system_mode(vibration)
+
+    popup_msg = ""
+    if mode == "STABILISATION":
+        popup_msg = "⚠️ Earthquake detected! Stabilisation mode active."
+    elif mode == "EMERGENCY":
+        popup_msg = "🚨 Earthquake detected! Emergency stop activated."
+
+    return jsonify({
+        "mode": mode,
+        "popup": popup_msg
+    })
+
+
 
 # ------------------------
 # MAIN
