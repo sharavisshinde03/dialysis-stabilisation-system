@@ -31,8 +31,8 @@ class _DashboardState extends State<Dashboard> {
   Map<String, dynamic>? data;
   Timer? timer;
 
-  final String baseUrl = "http://127.0.0.1:5001";
-
+  // Backend (Flask) URL
+  final String baseUrl = "http://localhost:5001/";
 
   final nameCtrl = TextEditingController();
   final ageCtrl = TextEditingController();
@@ -56,11 +56,10 @@ class _DashboardState extends State<Dashboard> {
     super.dispose();
   }
 
-  // ================= API =================
-
+  // ---------------- FETCH DATA ----------------
   Future<void> fetchData() async {
     try {
-      final res = await http.get(Uri.parse("$baseUrl/data"));
+      final res = await http.get(Uri.parse("${baseUrl}data"));
       if (res.statusCode == 200) {
         setState(() {
           data = jsonDecode(res.body);
@@ -82,10 +81,11 @@ class _DashboardState extends State<Dashboard> {
     }
   }
 
+  // ---------------- REGISTER PATIENT ----------------
   Future<void> registerPatient() async {
     try {
       final response = await http.post(
-        Uri.parse("$baseUrl/patients"),
+        Uri.parse("${baseUrl}patients"),
         headers: {"Content-Type": "application/json"},
         body: jsonEncode({
           "name": nameCtrl.text,
@@ -96,10 +96,10 @@ class _DashboardState extends State<Dashboard> {
       );
 
       if (response.statusCode == 200) {
-        fetchData();       // Refresh dashboard
-        Navigator.pop(context); // Close dialog
+        await fetchData();
+        Navigator.pop(context);
       } else {
-        print("Failed to register patient");
+        print("Patient creation failed: ${response.body}");
       }
     } catch (e) {
       print("Error registering patient: $e");
@@ -107,15 +107,16 @@ class _DashboardState extends State<Dashboard> {
   }
 
   Future<void> startSystem() async {
-    await http.post(Uri.parse("$baseUrl/start"));
+    await http.post(Uri.parse("${baseUrl}start"));
+    await fetchData();
   }
 
   Future<void> stopSystem() async {
-    await http.post(Uri.parse("$baseUrl/stop"));
+    await http.post(Uri.parse("${baseUrl}stop"));
+    await fetchData();
   }
 
-  // ================= UI =================
-
+  // ---------------- UI ----------------
   @override
   Widget build(BuildContext context) {
     if (data == null) {
@@ -127,10 +128,15 @@ class _DashboardState extends State<Dashboard> {
     final state = data!['system_state'];
     final alerts = data!['alerts'] as List;
 
+    // Dynamic background colors
     Color bg = Colors.black;
-    if (state == "EMERGENCY_STOP") bg = Colors.red.shade900;
-    if (state == "STABILISATION") bg = Colors.orange.shade900;
-    if (state == "RUNNING") bg = Colors.green.shade900;
+    if (state == "EMERGENCY_STOP") {
+      bg = Colors.red.shade900;
+    } else if (state == "STABILISATION") {
+      bg = Colors.orange.shade900;
+    } else if (state == "RUNNING") {
+      bg = Colors.green.shade900;
+    }
 
     return Scaffold(
       backgroundColor: bg,
@@ -158,7 +164,6 @@ class _DashboardState extends State<Dashboard> {
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Card(
               child: ListTile(
@@ -170,7 +175,6 @@ class _DashboardState extends State<Dashboard> {
               ),
             ),
             const SizedBox(height: 12),
-
             Wrap(
               spacing: 12,
               runSpacing: 12,
@@ -183,7 +187,6 @@ class _DashboardState extends State<Dashboard> {
                 stat("State", state),
               ],
             ),
-
             const SizedBox(height: 16),
             const Text("Alerts", style: TextStyle(fontSize: 18)),
             Expanded(

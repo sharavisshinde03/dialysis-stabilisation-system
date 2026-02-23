@@ -1,40 +1,41 @@
 import sys
 import os
+import threading
+import time
+import random
 
 # Add project root to Python path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from flask import Flask, jsonify, request, render_template
 from flask_cors import CORS
-import threading
-import time
-import random
 from core.vibration_ai import generate_vibration
 from core.stabilisation_logic import get_system_mode
-from flask_sqlalchemy import SQLAlchemy
-from core.models import db
-from core.models import Patient
+from supabase import create_client, Client
 
 
+# -------------------------------------------------
+# SUPABASE CONFIG (🔥 PUT YOUR VALUES HERE)
+# -------------------------------------------------
+SUPABASE_URL = "https://gzaerodxgvnibuznqdqb.supabase.co"
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd6YWVyb2R4Z3ZuaWJ1em5xZHFiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEyNzU5NjYsImV4cCI6MjA4Njg1MTk2Nn0.tfPPhMVoJjJ1ZtKb_tVJboAEF_RNRHCEkWINm_jPK1o"
 
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+
+# -------------------------------------------------
+# APP CONFIG
+# -------------------------------------------------
 app = Flask(__name__, template_folder="templates", static_folder="static")
 CORS(app)
 
-app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://localhost/dialysis_db'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-db.init_app(app)
-
-with app.app_context():
-    db.create_all()
-
-
-
-# ------------------------
+# -------------------------------------------------
 # GLOBAL STATE
-# ------------------------
+# -------------------------------------------------
 system_running = False
 current_vibration = 0.0
+
 STABILISATION_THRESHOLD = 0.35
 EMERGENCY_STOP_THRESHOLD = 0.55
 
@@ -47,11 +48,12 @@ system_state = "IDLE"
 
 patient = None
 alerts = []
-last_state = None   # 👈 prevents duplicate alerts
+last_state = None
 
-# ------------------------
+
+# -------------------------------------------------
 # SIMULATION LOOP
-# ------------------------
+# -------------------------------------------------
 def simulation_loop():
     global current_vibration, blood_flow
     global arterial_pressure, venous_pressure
@@ -60,7 +62,8 @@ def simulation_loop():
 
     while True:
         if system_running and treatment_seconds > 0:
-            # 🔁 Gradual vibration increase (IMPORTANT)
+
+            # Gradual vibration increase
             if current_vibration < 0.3:
                 current_vibration += random.uniform(0.02, 0.05)
             else:
@@ -93,31 +96,49 @@ def simulation_loop():
 
             # 🟢 NORMAL
             else:
-                system_state = "NORMAL"
+                system_state = "RUNNING"
                 blood_flow = 300
                 arterial_pressure = 120
                 venous_pressure = 80
 
-            # ⏱ countdown
             treatment_seconds -= 1
             last_state = system_state
 
         time.sleep(1)
 
-# ------------------------
+
+# -------------------------------------------------
 # ROUTES
-# ------------------------
+# -------------------------------------------------
+
 @app.route("/")
 def index():
     return render_template("index.html")
 
-@app.route("/set_patient", methods=["POST"])
-def set_patient():
-    global patient, treatment_seconds, system_state, alerts
-    global current_vibration, last_state
+
+# 🔥 SAVE TO SUPABASE + ACTIVATE PATIENT
+@app.route("/patients", methods=["POST"])
+def create_patient():
+    global patient, treatment_seconds, system_state
+    global alerts, current_vibration, last_state
 
     data = request.json
 
+    if not data:
+        return jsonify({"error": "Invalid data"}), 400
+
+    try:
+        # 1️⃣ Save to Supabase
+        supabase.table("patients").insert({
+            "name": data["name"],
+            "age": data["age"],
+            "gender": data["gender"]
+        }).execute()
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    # 2️⃣ Set Active Patient in Simulation
     patient = {
         "name": data["name"],
         "age": data["age"],
@@ -127,19 +148,25 @@ def set_patient():
     treatment_seconds = int(data["hours"]) * 3600
     system_state = "READY"
 
-    # reset state
+    # Reset simulation state
     alerts.clear()
     current_vibration = 0.0
     last_state = None
 
-    return jsonify({"ok": True})
+    return jsonify({"message": "Patient saved to Supabase & activated"})
+
 
 @app.route("/start", methods=["POST"])
 def start():
     global system_running, system_state
+
+    if not patient:
+        return jsonify({"error": "No patient set"}), 400
+
     system_running = True
     system_state = "RUNNING"
     return jsonify({"ok": True})
+
 
 @app.route("/stop", methods=["POST"])
 def stop():
@@ -147,6 +174,7 @@ def stop():
     system_running = False
     system_state = "STOPPED"
     return jsonify({"ok": True})
+
 
 @app.route("/data")
 def data():
@@ -165,6 +193,7 @@ def data():
         "alerts": alerts
     })
 
+
 @app.route("/status")
 def status():
     vibration = generate_vibration(int(time.time()))
@@ -181,26 +210,10 @@ def status():
         "popup": popup_msg
     })
 
-@app.route("/patients", methods=["POST"])
-def create_patients():
-    data = request.json
 
-    new_patient = Patient(
-        name=data["name"],
-        age=data["age"],
-        gender=data["gender"]
-    )
-
-    db.session.add(new_patient)
-    db.session.commit()
-
-    return jsonify({"ok": True})
-
-
-
-# ------------------------
+# -------------------------------------------------
 # MAIN
-# ------------------------
+# -------------------------------------------------
 if __name__ == "__main__":
     threading.Thread(target=simulation_loop, daemon=True).start()
     app.run(debug=True, port=5001)
