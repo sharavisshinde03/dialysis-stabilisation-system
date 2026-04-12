@@ -3,6 +3,8 @@ import os
 import threading
 import time
 import random
+import smtplib
+from email.mime.text import MIMEText
 
 # Add project root to Python path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -15,7 +17,29 @@ from supabase import create_client, Client
 
 
 # -------------------------------------------------
-# SUPABASE CONFIG (🔥 PUT YOUR VALUES HERE)
+# EMAIL FUNCTION (🔥 ADDED ONLY)
+# -------------------------------------------------
+def send_email(message):
+    sender = "sharavisshinde03@gmail.com"
+    password = "yzamxznobiraxuos"   # 🔥 use Gmail app password
+    receiver = "ronakludbe@gmail.com"
+
+    msg = MIMEText(message)
+    msg['Subject'] = "Dialysis Alert 🚨"
+    msg['From'] = sender
+    msg['To'] = receiver
+
+    try:
+        with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
+            server.login(sender, password)
+            server.sendmail(sender, receiver, msg.as_string())
+        print("✅ Email sent")
+    except Exception as e:
+        print("❌ Email error:", e)
+
+
+# -------------------------------------------------
+# SUPABASE CONFIG
 # -------------------------------------------------
 SUPABASE_URL = "https://gzaerodxgvnibuznqdqb.supabase.co"
 SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd6YWVyb2R4Z3ZuaWJ1em5xZHFiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEyNzU5NjYsImV4cCI6MjA4Njg1MTk2Nn0.tfPPhMVoJjJ1ZtKb_tVJboAEF_RNRHCEkWINm_jPK1o"
@@ -50,6 +74,8 @@ patient = None
 alerts = []
 last_state = None
 
+email_sent = False   # 🔥 ADDED
+
 
 # -------------------------------------------------
 # SIMULATION LOOP
@@ -58,12 +84,11 @@ def simulation_loop():
     global current_vibration, blood_flow
     global arterial_pressure, venous_pressure
     global treatment_seconds, system_running
-    global system_state, last_state
+    global system_state, last_state, email_sent
 
     while True:
         if system_running and treatment_seconds > 0:
 
-            # Gradual vibration increase
             if current_vibration < 0.3:
                 current_vibration += random.uniform(0.02, 0.05)
             else:
@@ -71,15 +96,21 @@ def simulation_loop():
 
             current_vibration = round(min(current_vibration, 0.7), 2)
 
-            # 🔴 EMERGENCY
+            # 🔴 EMERGENCY (ONLY CHANGE HERE)
             if current_vibration >= EMERGENCY_STOP_THRESHOLD:
                 if system_state != "EMERGENCY_STOP":
                     system_state = "EMERGENCY_STOP"
                     system_running = False
+
                     alerts.append({
                         "time": time.strftime("%H:%M:%S"),
                         "message": "EMERGENCY: Severe vibration detected"
                     })
+
+                    if not email_sent:
+                        send_email("⚠️ STABILISATION: Vibration exceeded safe limit in Dialysis System.")
+                        send_email("🚨 EMERGENCY: Severe vibration detected in Dialysis System!")
+                        email_sent = True
 
             # 🟠 STABILISATION
             elif current_vibration >= STABILISATION_THRESHOLD:
@@ -101,6 +132,8 @@ def simulation_loop():
                 arterial_pressure = 120
                 venous_pressure = 80
 
+                email_sent = False   # 🔥 RESET
+
             treatment_seconds -= 1
             last_state = system_state
 
@@ -108,7 +141,7 @@ def simulation_loop():
 
 
 # -------------------------------------------------
-# ROUTES
+# ROUTES (UNCHANGED)
 # -------------------------------------------------
 
 @app.route("/")
@@ -116,7 +149,6 @@ def index():
     return render_template("index.html")
 
 
-# 🔥 SAVE TO SUPABASE + ACTIVATE PATIENT
 @app.route("/patients", methods=["POST"])
 def create_patient():
     global patient, treatment_seconds, system_state
@@ -128,7 +160,6 @@ def create_patient():
         return jsonify({"error": "Invalid data"}), 400
 
     try:
-        # 1️⃣ Save to Supabase
         supabase.table("patients").insert({
             "name": data["name"],
             "age": data["age"],
@@ -138,7 +169,6 @@ def create_patient():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-    # 2️⃣ Set Active Patient in Simulation
     patient = {
         "name": data["name"],
         "age": data["age"],
@@ -148,12 +178,11 @@ def create_patient():
     treatment_seconds = int(data["hours"]) * 3600
     system_state = "READY"
 
-    # Reset simulation state
     alerts.clear()
     current_vibration = 0.0
     last_state = None
 
-    return jsonify({"message": "Patient saved to Supabase & activated"})
+    return jsonify({"message": "Patient saved & activated"})
 
 
 @app.route("/start", methods=["POST"])

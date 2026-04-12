@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:html'; // WebSocket for Flutter Web
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
@@ -31,8 +32,8 @@ class _DashboardState extends State<Dashboard> {
   Map<String, dynamic>? data;
   Timer? timer;
 
-  // Backend (Flask) URL
   final String baseUrl = "http://localhost:5001/";
+  WebSocket? socket;
 
   final nameCtrl = TextEditingController();
   final ageCtrl = TextEditingController();
@@ -43,12 +44,19 @@ class _DashboardState extends State<Dashboard> {
   void initState() {
     super.initState();
     fetchData();
-    timer = Timer.periodic(const Duration(seconds: 1), (_) => fetchData());
+    connectSocket();
+
+    // ✅ Keep API for time + alerts
+    timer = Timer.periodic(
+      const Duration(seconds: 1),
+      (_) => fetchData(),
+    );
   }
 
   @override
   void dispose() {
     timer?.cancel();
+    socket?.close();
     nameCtrl.dispose();
     ageCtrl.dispose();
     genderCtrl.dispose();
@@ -56,32 +64,69 @@ class _DashboardState extends State<Dashboard> {
     super.dispose();
   }
 
-  // ---------------- FETCH DATA ----------------
+  // ================= SOCKET =================
+  void connectSocket() {
+    socket = WebSocket('ws://localhost:8080');
+
+    socket!.onMessage.listen((event) {
+      if (data == null) return;
+
+      // ❌ BLOCK if no patient
+      if (data!['patient'] == null) return;
+
+      String state = data!['system_state'].toString();
+
+      // ❌ BLOCK if system not active
+      if (state != "RUNNING" &&
+          state != "STABILISATION" &&
+          state != "EMERGENCY_STOP") return;
+
+      var parts = event.data.split(',');
+
+      setState(() {
+        double vib = double.parse(parts[1]);
+
+        data!['vibration'] = vib.toStringAsFixed(4);
+
+        // dynamic pressure
+        data!['arterial_pressure'] =
+            (160 + vib * 200).toStringAsFixed(1);
+        data!['venous_pressure'] =
+            (180 + vib * 200).toStringAsFixed(1);
+      });
+    });
+  }
+
+  // ================= FETCH DATA =================
   Future<void> fetchData() async {
     try {
       final res = await http.get(Uri.parse("${baseUrl}data"));
+
       if (res.statusCode == 200) {
+        final newData = jsonDecode(res.body);
+
         setState(() {
-          data = jsonDecode(res.body);
+          data ??= {};
+
+          // 🔥 preserve Arduino values
+          final vibration = data!['vibration'];
+          final arterial = data!['arterial_pressure'];
+          final venous = data!['venous_pressure'];
+
+          data = newData;
+
+          // 🔥 restore live values
+          data!['vibration'] = vibration ?? newData['vibration'];
+          data!['arterial_pressure'] =
+              arterial ?? newData['arterial_pressure'];
+          data!['venous_pressure'] =
+              venous ?? newData['venous_pressure'];
         });
       }
-    } catch (_) {
-      setState(() {
-        data = {
-          "system_state": "DISCONNECTED",
-          "alerts": [],
-          "patient": null,
-          "blood_flow": "--",
-          "arterial_pressure": "--",
-          "venous_pressure": "--",
-          "vibration": "--",
-          "remaining_time": "--:--:--",
-        };
-      });
-    }
+    } catch (_) {}
   }
 
-  // ---------------- REGISTER PATIENT ----------------
+  // ================= PATIENT =================
   Future<void> registerPatient() async {
     try {
       final response = await http.post(
@@ -98,25 +143,31 @@ class _DashboardState extends State<Dashboard> {
       if (response.statusCode == 200) {
         await fetchData();
         Navigator.pop(context);
-      } else {
-        print("Patient creation failed: ${response.body}");
       }
     } catch (e) {
-      print("Error registering patient: $e");
+      print(e);
     }
   }
 
   Future<void> startSystem() async {
     await http.post(Uri.parse("${baseUrl}start"));
+    await Future.delayed(const Duration(milliseconds: 300));
     await fetchData();
   }
 
   Future<void> stopSystem() async {
     await http.post(Uri.parse("${baseUrl}stop"));
+
+    setState(() {
+      data!['vibration'] = "--";
+      data!['arterial_pressure'] = "--";
+      data!['venous_pressure'] = "--";
+    });
+
     await fetchData();
   }
 
-  // ---------------- UI ----------------
+  // ================= UI =================
   @override
   Widget build(BuildContext context) {
     if (data == null) {
@@ -128,8 +179,8 @@ class _DashboardState extends State<Dashboard> {
     final state = data!['system_state'];
     final alerts = data!['alerts'] as List;
 
-    // Dynamic background colors
     Color bg = Colors.black;
+
     if (state == "EMERGENCY_STOP") {
       bg = Colors.red.shade900;
     } else if (state == "STABILISATION") {
@@ -175,6 +226,17 @@ class _DashboardState extends State<Dashboard> {
               ),
             ),
             const SizedBox(height: 12),
+
+            Text(
+              state,
+              style: const TextStyle(
+                fontSize: 26,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
             Wrap(
               spacing: 12,
               runSpacing: 12,
@@ -187,8 +249,10 @@ class _DashboardState extends State<Dashboard> {
                 stat("State", state),
               ],
             ),
+
             const SizedBox(height: 16),
             const Text("Alerts", style: TextStyle(fontSize: 18)),
+
             Expanded(
               child: alerts.isEmpty
                   ? const Center(child: Text("No alerts"))

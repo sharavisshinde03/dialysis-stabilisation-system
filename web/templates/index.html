@@ -28,4 +28,25 @@
 <button onclick="startSystem()">▶ Start</button>
 <button onclick="stopSystem()">⏹ Stop</button>
 
+<h2>Notification History</h2>
+<ul id="notifications"></ul>
+
+<script>
+async function loadNotifications() {
+    const res = await fetch("/notifications");
+    const data = await res.json();
+
+    const list = document.getElementById("notifications");
+    list.innerHTML = "";
+
+    data.forEach(n => {
+        const li = document.createElement("li");
+        li.innerText = `${n.mode} | ${n.patient_name} | ${n.created_at}`;
+        list.appendChild(li);
+    });
+}
+
+setInterval(loadNotifications, 5000);
+</script>
+
 <script src="/static/js/dashboard.js"></script>
