@@ -15,6 +15,9 @@ from flask_cors import CORS
 from core.vibration_ai import generate_vibration
 from core.stabilisation_logic import get_system_mode
 from supabase import create_client, Client
+from flask import Flask, send_from_directory
+
+app = Flask(__name__, static_folder='static')
 
 @app.route('/')
 def serve_flutter():
