@@ -5,6 +5,7 @@ import time
 import random
 import smtplib
 from email.mime.text import MIMEText
+from flask import send_from_directory
 
 # Add project root to Python path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -14,6 +15,14 @@ from flask_cors import CORS
 from core.vibration_ai import generate_vibration
 from core.stabilisation_logic import get_system_mode
 from supabase import create_client, Client
+
+@app.route('/')
+def serve_flutter():
+    return send_from_directory('static', 'index.html')
+
+@app.route('/<path:path>')
+def serve_files(path):
+    return send_from_directory('static', path)
 
 
 # -------------------------------------------------
