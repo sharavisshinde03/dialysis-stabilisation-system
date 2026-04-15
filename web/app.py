@@ -10,7 +10,7 @@ from email.mime.text import MIMEText
 # Add project root to Python path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from flask import Flask, jsonify, request, render_template
+from flask import Flask, jsonify, request
 from flask_cors import CORS
 from core.vibration_ai import generate_vibration
 from core.stabilisation_logic import get_system_mode
@@ -164,9 +164,7 @@ def simulation_loop():
 # ROUTES (UNCHANGED)
 # -------------------------------------------------
 
-@app.route("/")
-def index():
-    return render_template("index.html")
+   
 
 
 @app.route("/patients", methods=["POST"])
